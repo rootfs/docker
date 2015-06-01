@@ -41,6 +41,7 @@ type Config struct {
 	Labels               []string
 	Ulimits              map[string]*ulimit.Ulimit
 	LogConfig            runconfig.LogConfig
+	HostMountNS          bool
 }
 
 // InstallFlags adds command-line options to the top-level flag parser for
@@ -81,6 +82,7 @@ func (config *Config) InstallFlags() {
 	flag.StringVar(&config.LogConfig.Type, []string{"-log-driver"}, "json-file", "Default driver for container logs")
 	flag.BoolVar(&config.Bridge.EnableUserlandProxy, []string{"-userland-proxy"}, true, "Use userland proxy for loopback traffic")
 	opts.LogOptsVar(config.LogConfig.Config, []string{"-log-opt"}, "Set log driver options")
+	flag.BoolVar(&config.HostMountNS, []string{"#hostns", "-hostns"}, false, "Optionally use host mount namespace")
 }
 
 func getDefaultNetworkMtu() int {

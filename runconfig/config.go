@@ -128,6 +128,7 @@ type Config struct {
 	MacAddress      string
 	OnBuild         []string
 	Labels          map[string]string
+	HostMountNS     bool
 }
 
 type ContainerConfigWrapper struct {

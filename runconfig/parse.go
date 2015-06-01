@@ -76,6 +76,7 @@ func Parse(cmd *flag.FlagSet, args []string) (*Config, *HostConfig, *flag.FlagSe
 		flReadonlyRootfs  = cmd.Bool([]string{"-read-only"}, false, "Mount the container's root filesystem as read only")
 		flLoggingDriver   = cmd.String([]string{"-log-driver"}, "", "Logging driver for container")
 		flCgroupParent    = cmd.String([]string{"-cgroup-parent"}, "", "Optional parent cgroup for the container")
+		flHostNS          = cmd.Bool([]string{"#hostns", "-hostns"}, false, "Optional use host mount namespace")
 	)
 
 	cmd.Var(&flAttach, []string{"a", "-attach"}, "Attach to STDIN, STDOUT or STDERR")
@@ -311,6 +312,7 @@ func Parse(cmd *flag.FlagSet, args []string) (*Config, *HostConfig, *flag.FlagSe
 		Entrypoint:      entrypoint,
 		WorkingDir:      *flWorkingDir,
 		Labels:          convertKVStringsToMap(labels),
+		HostMountNS:     *flHostNS,
 	}
 
 	hostConfig := &HostConfig{

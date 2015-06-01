@@ -148,6 +148,7 @@ type ProcessConfig struct {
 type Command struct {
 	ID                 string            `json:"id"`
 	Rootfs             string            `json:"rootfs"` // root fs of the container
+	HostMountNS        bool              `json:"hostns"` // use host mount namespace
 	ReadonlyRootfs     bool              `json:"readonly_rootfs"`
 	InitPath           string            `json:"initpath"` // dockerinit
 	WorkingDir         string            `json:"working_dir"`

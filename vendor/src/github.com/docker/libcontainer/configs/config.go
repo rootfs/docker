@@ -103,6 +103,9 @@ type Config struct {
 	// SystemProperties is a map of properties and their values. It is the equivalent of using
 	// sysctl -w my.property.name value in Linux.
 	SystemProperties map[string]string `json:"system_properties"`
+
+	// HostMountNS will use host mount namespace
+	HostMountNS bool `json:"hostns"`
 }
 
 // Gets the root uid for the process on host which could be non-zero

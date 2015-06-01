@@ -55,10 +55,15 @@ func setupRootfs(config *configs.Config, console *linuxConsole) (err error) {
 	if err := syscall.Chdir(config.Rootfs); err != nil {
 		return newSystemError(err)
 	}
-	if config.NoPivotRoot {
-		err = msMoveRoot(config.Rootfs)
+
+	if !config.HostMountNS {
+		if config.NoPivotRoot {
+			err = msMoveRoot(config.Rootfs)
+		} else {
+			err = pivotRoot(config.Rootfs, config.PivotDir)
+		}
 	} else {
-		err = pivotRoot(config.Rootfs, config.PivotDir)
+		err = changeRoot(config.Rootfs)
 	}
 	if err != nil {
 		return newSystemError(err)
@@ -343,6 +348,9 @@ func prepareRoot(config *configs.Config) error {
 	if config.Privatefs {
 		flag = syscall.MS_PRIVATE | syscall.MS_REC
 	}
+	if config.HostMountNS {
+		flag = syscall.MS_SHARED | syscall.MS_REC
+	}
 	if err := syscall.Mount("", "/", "", uintptr(flag), ""); err != nil {
 		return err
 	}
@@ -398,6 +406,13 @@ func msMoveRoot(rootfs string) error {
 		return err
 	}
 	if err := syscall.Chroot("."); err != nil {
+		return err
+	}
+	return syscall.Chdir("/")
+}
+
+func changeRoot(rootfs string) error {
+	if err := syscall.Chroot(rootfs); err != nil {
 		return err
 	}
 	return syscall.Chdir("/")
