@@ -23,6 +23,10 @@ var (
 	ErrConflictNetworkExposePorts       = fmt.Errorf("Conflicting options: --expose and the network mode (--expose)")
 )
 
+var (
+	DefaultRootMount = "rprivate"
+)
+
 // validateNM is the set of fields passed to validateNetMode()
 type validateNM struct {
 	netMode        NetworkMode
@@ -94,6 +98,7 @@ func Parse(cmd *flag.FlagSet, args []string) (*Config, *HostConfig, *flag.FlagSe
 		flLoggingDriver   = cmd.String([]string{"-log-driver"}, "", "Logging driver for container")
 		flCgroupParent    = cmd.String([]string{"-cgroup-parent"}, "", "Optional parent cgroup for the container")
 		flVolumeDriver    = cmd.String([]string{"-volume-driver"}, "", "Optional volume driver for the container")
+		flRootMount       = cmd.String([]string{"-rootmount"}, "", "Rootfs mount propogation mode")
 	)
 
 	cmd.Var(&flAttach, []string{"a", "-attach"}, "Attach to STDIN, STDOUT or STDERR")
@@ -315,6 +320,10 @@ func Parse(cmd *flag.FlagSet, args []string) (*Config, *HostConfig, *flag.FlagSe
 	if err != nil {
 		return nil, nil, cmd, err
 	}
+	rootMount, err := parseRootMount(*flRootMount)
+	if err != nil {
+		return nil, nil, cmd, fmt.Errorf("--rootmount: %v", err)
+	}
 
 	config := &Config{
 		Hostname:        hostname,
@@ -336,6 +345,7 @@ func Parse(cmd *flag.FlagSet, args []string) (*Config, *HostConfig, *flag.FlagSe
 		WorkingDir:      *flWorkingDir,
 		Labels:          convertKVStringsToMap(labels),
 		VolumeDriver:    *flVolumeDriver,
+		RootMount:       rootMount,
 	}
 
 	hostConfig := &HostConfig{
@@ -504,4 +514,18 @@ func ParseDevice(device string) (DeviceMapping, error) {
 		CgroupPermissions: permissions,
 	}
 	return deviceMapping, nil
+}
+
+// parseRootMount returns the parsed rootfs mount propogation or an error indicating what is incorrect
+func parseRootMount(propogation string) (string, error) {
+	if propogation == "" {
+		return DefaultRootMount, nil
+	}
+
+	switch propogation {
+	case "shared", "private", "slave", "rshared", "rprivate", "rslave":
+		return propogation, nil
+	default:
+		return "", fmt.Errorf("invalid mount propogation mode %s", propogation)
+	}
 }

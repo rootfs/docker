@@ -15,6 +15,15 @@ import (
 	"github.com/opencontainers/runc/libcontainer/configs"
 )
 
+var mountPropagationMapping = map[string]configs.PropagationMode{
+	"private":  configs.PRIVATE,
+	"slave":    configs.SLAVE,
+	"shared":   configs.SHARED,
+	"rprivate": configs.RPRIVATE,
+	"rslave":   configs.RSLAVE,
+	"rshared":  configs.RSHARED,
+}
+
 func InitContainer(c *Command) *configs.Config {
 	container := template.New()
 
@@ -24,7 +33,12 @@ func InitContainer(c *Command) *configs.Config {
 	container.Devices = c.AutoCreatedDevices
 	container.Rootfs = c.Rootfs
 	container.Readonlyfs = c.ReadonlyRootfs
-	container.Privatefs = true
+
+	if p, exists := mountPropagationMapping[c.RootMount]; exists {
+		container.RootfsMountMode = p
+	} else {
+		container.RootfsMountMode = mountPropagationMapping["rslave"]
+	}
 
 	// check to see if we are running in ramdisk to disable pivot root
 	container.NoPivotRoot = os.Getenv("DOCKER_RAMDISK") != ""
