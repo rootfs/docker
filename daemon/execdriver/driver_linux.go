@@ -16,12 +16,9 @@ import (
 )
 
 var mountPropagationMapping = map[string]configs.PropagationMode{
-	"private":  configs.PRIVATE,
-	"slave":    configs.SLAVE,
-	"shared":   configs.SHARED,
-	"rprivate": configs.RPRIVATE,
-	"rslave":   configs.RSLAVE,
-	"rshared":  configs.RSHARED,
+	"private": configs.PRIVATE,
+	"slave":   configs.SLAVE,
+	"shared":  configs.SHARED,
 }
 
 func InitContainer(c *Command) *configs.Config {
@@ -37,7 +34,7 @@ func InitContainer(c *Command) *configs.Config {
 	if p, exists := mountPropagationMapping[c.RootMount]; exists {
 		container.RootfsMountMode = p
 	} else {
-		container.RootfsMountMode = mountPropagationMapping["rslave"]
+		container.RootfsMountMode = mountPropagationMapping["slave"]
 	}
 
 	// check to see if we are running in ramdisk to disable pivot root
