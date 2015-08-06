@@ -109,6 +109,30 @@ func (n PidMode) Valid() bool {
 	return true
 }
 
+// MNTMode represents the mount namespace of the container.
+type MNTMode string
+
+// IsPrivate indicates whether the container uses it's private mount namespace.
+func (n MNTMode) IsPrivate() bool {
+	return !(n.IsHost())
+}
+
+// IsHost indicates whether the container uses the host's mount namespace.
+func (n MNTMode) IsHost() bool {
+	return n == "host"
+}
+
+// Valid indicates whether the mnt is valid.
+func (n MNTMode) Valid() bool {
+	parts := strings.Split(string(n), ":")
+	switch mode := parts[0]; mode {
+	case "", "host":
+	default:
+		return false
+	}
+	return true
+}
+
 // DeviceMapping represents the device mapping between the host and the container.
 type DeviceMapping struct {
 	PathOnHost        string
@@ -286,6 +310,7 @@ type HostConfig struct {
 	IpcMode          IpcMode          // IPC namespace to use for the container
 	PidMode          PidMode          // PID namespace to use for the container
 	UTSMode          UTSMode          // UTS namespace to use for the container
+	MNTMode          MNTMode          // MNT namespace to use for the container
 	CapAdd           *CapList         // List of kernel capabilities to add to the container
 	CapDrop          *CapList         // List of kernel capabilities to remove from the container
 	GroupAdd         []string         // List of additional groups that the container process will run as

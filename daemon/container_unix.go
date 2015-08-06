@@ -204,6 +204,10 @@ func populateCommand(c *Container, env []string) error {
 		HostUTS: c.hostConfig.UTSMode.IsHost(),
 	}
 
+	mnt := &execdriver.MNT{
+		HostMNT: c.hostConfig.MNTMode.IsHost(),
+	}
+
 	// Build lists of devices allowed and created within the container.
 	var userSpecifiedDevices []*configs.Device
 	for _, deviceMapping := range c.hostConfig.Devices {
@@ -286,6 +290,7 @@ func populateCommand(c *Container, env []string) error {
 		Ipc:                ipc,
 		Pid:                pid,
 		UTS:                uts,
+		MNT:                mnt,
 		Resources:          resources,
 		AllowedDevices:     allowedDevices,
 		AutoCreatedDevices: autoCreatedDevices,

@@ -130,6 +130,16 @@ type UTS struct {
 	HostUTS bool `json:"host_uts"`
 }
 
+// MNT settings of the container
+// It is for mount namespace setting. Usually different containers
+// have their own mount namespace, however this specifies to use
+// an existing mount namespace.
+// Joining the host's mount namespace is currently the only supported
+// option.
+type MNT struct {
+	HostMNT bool `json:"host_mnt"`
+}
+
 // NetworkInterface contains all network configs for a driver
 type NetworkInterface struct {
 	Gateway              string `json:"gateway"`
@@ -207,6 +217,7 @@ type Command struct {
 	Ipc                *Ipc              `json:"ipc"`
 	Pid                *Pid              `json:"pid"`
 	UTS                *UTS              `json:"uts"`
+	MNT                *MNT              `json:"mnt"`
 	Resources          *Resources        `json:"resources"`
 	Mounts             []Mount           `json:"mounts"`
 	AllowedDevices     []*configs.Device `json:"allowed_devices"`

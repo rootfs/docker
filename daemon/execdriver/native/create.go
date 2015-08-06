@@ -33,6 +33,9 @@ func (d *Driver) createContainer(c *execdriver.Command) (*configs.Config, error)
 		return nil, err
 	}
 
+	if err := d.createMNT(container, c); err != nil {
+		return nil, err
+	}
 	if err := d.createNetwork(container, c); err != nil {
 		return nil, err
 	}
@@ -181,6 +184,15 @@ func (d *Driver) createUTS(container *configs.Config, c *execdriver.Command) err
 	if c.UTS.HostUTS {
 		container.Namespaces.Remove(configs.NEWUTS)
 		container.Hostname = ""
+		return nil
+	}
+
+	return nil
+}
+
+func (d *Driver) createMNT(container *configs.Config, c *execdriver.Command) error {
+	if c.MNT.HostMNT {
+		container.Namespaces.Remove(configs.NEWNS)
 		return nil
 	}
 
