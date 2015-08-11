@@ -55,7 +55,8 @@ func setupRootfs(config *configs.Config, console *linuxConsole) (err error) {
 	if err := syscall.Chdir(config.Rootfs); err != nil {
 		return newSystemError(err)
 	}
-	if config.RootfsMountMode == configs.SHARED {
+	if config.RootfsMountMode == configs.SHARED ||
+		config.RootfsMountMode == configs.RSHARED {
 		err = changeRoot(config.Rootfs)
 	} else {
 		if config.NoPivotRoot {
@@ -174,23 +175,32 @@ func mountToRootfs(m *configs.Mount, rootfs, mountLabel string) error {
 			}
 		}
 	case "cgroup":
-		binds, err := getCgroupMounts(m)
+		mounts, err := cgroups.GetCgroupMounts()
 		if err != nil {
 			return err
 		}
-		var merged []string
-		for _, b := range binds {
-			ss := filepath.Base(b.Destination)
-			if strings.Contains(ss, ",") {
-				merged = append(merged, ss)
+		var binds []*configs.Mount
+		for _, mm := range mounts {
+			dir, err := mm.GetThisCgroupDir()
+			if err != nil {
+				return err
 			}
+			relDir, err := filepath.Rel(mm.Root, dir)
+			if err != nil {
+				return err
+			}
+			binds = append(binds, &configs.Mount{
+				Device:      "bind",
+				Source:      filepath.Join(mm.Mountpoint, relDir),
+				Destination: filepath.Join(m.Destination, strings.Join(mm.Subsystems, ",")),
+				Flags:       syscall.MS_BIND | syscall.MS_REC | m.Flags,
+			})
 		}
 		tmpfs := &configs.Mount{
 			Source:      "tmpfs",
 			Device:      "tmpfs",
 			Destination: m.Destination,
 			Flags:       defaultMountFlags,
-			Data:        "mode=755",
 		}
 		if err := mountToRootfs(tmpfs, rootfs, mountLabel); err != nil {
 			return err
@@ -200,68 +210,10 @@ func mountToRootfs(m *configs.Mount, rootfs, mountLabel string) error {
 				return err
 			}
 		}
-		// create symlinks for merged cgroups
-		cwd, err := os.Getwd()
-		if err != nil {
-			return err
-		}
-		if err := os.Chdir(filepath.Join(rootfs, m.Destination)); err != nil {
-			return err
-		}
-		for _, mc := range merged {
-			for _, ss := range strings.Split(mc, ",") {
-				if err := os.Symlink(mc, ss); err != nil {
-					// if cgroup already exists, then okay(it could have been created before)
-					if os.IsExist(err) {
-						continue
-					}
-					os.Chdir(cwd)
-					return err
-				}
-			}
-		}
-		if err := os.Chdir(cwd); err != nil {
-			return err
-		}
-		if m.Flags&syscall.MS_RDONLY != 0 {
-			// remount cgroup root as readonly
-			rootfsCgroup := filepath.Join(rootfs, m.Destination)
-			if err := syscall.Mount("", rootfsCgroup, "", defaultMountFlags|syscall.MS_REMOUNT|syscall.MS_RDONLY, ""); err != nil {
-				return err
-			}
-		}
 	default:
 		return fmt.Errorf("unknown mount device %q to %q", m.Device, m.Destination)
 	}
 	return nil
-}
-
-func getCgroupMounts(m *configs.Mount) ([]*configs.Mount, error) {
-	mounts, err := cgroups.GetCgroupMounts()
-	if err != nil {
-		return nil, err
-	}
-
-	var binds []*configs.Mount
-
-	for _, mm := range mounts {
-		dir, err := mm.GetThisCgroupDir()
-		if err != nil {
-			return nil, err
-		}
-		relDir, err := filepath.Rel(mm.Root, dir)
-		if err != nil {
-			return nil, err
-		}
-		binds = append(binds, &configs.Mount{
-			Device:      "bind",
-			Source:      filepath.Join(mm.Mountpoint, relDir),
-			Destination: filepath.Join(m.Destination, strings.Join(mm.Subsystems, ",")),
-			Flags:       syscall.MS_BIND | syscall.MS_REC | m.Flags,
-		})
-	}
-
-	return binds, nil
 }
 
 // checkMountDestination checks to ensure that the mount destination is not over the
@@ -397,24 +349,26 @@ func mknodDevice(dest string, node *configs.Device) error {
 
 func prepareRoot(config *configs.Config) error {
 	flag := syscall.MS_SLAVE | syscall.MS_REC
-	if config.RootfsMountMode == configs.PRIVATE {
+
+	switch config.RootfsMountMode {
+	case configs.PRIVATE:
+		flag = syscall.MS_PRIVATE
+	case configs.RPRIVATE:
 		flag = syscall.MS_PRIVATE | syscall.MS_REC
-	}
-	if config.RootfsMountMode == configs.SHARED {
+	case configs.SLAVE:
+		flag = syscall.MS_SLAVE
+	case configs.RSLAVE:
+		flag = syscall.MS_SLAVE | syscall.MS_REC
+	case configs.SHARED:
+		flag = syscall.MS_SHARED
+	case configs.RSHARED:
 		flag = syscall.MS_SHARED | syscall.MS_REC
 	}
+
 	if err := syscall.Mount("", "/", "", uintptr(flag), ""); err != nil {
 		return err
 	}
-	if err := syscall.Mount(config.Rootfs, config.Rootfs, "bind", syscall.MS_BIND|syscall.MS_REC, ""); err != nil {
-		return err
-	}
-	if config.RootfsMountMode == configs.SHARED {
-		if err := syscall.Mount("", config.Rootfs, "none", uintptr(syscall.MS_PRIVATE), ""); err != nil {
-			return fmt.Errorf("failed to mount rootfs %s: %v", config.Rootfs, err)
-		}
-	}
-	return nil
+	return syscall.Mount(config.Rootfs, config.Rootfs, "bind", syscall.MS_BIND|syscall.MS_REC, "")
 }
 
 func setReadonly() error {

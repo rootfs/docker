@@ -293,19 +293,6 @@ func (c *linuxContainer) checkCriuVersion() error {
 
 const descriptors_filename = "descriptors.json"
 
-func (c *linuxContainer) addCriuDumpMount(req *criurpc.CriuReq, m *configs.Mount) {
-	mountDest := m.Destination
-	if strings.HasPrefix(mountDest, c.config.Rootfs) {
-		mountDest = mountDest[len(c.config.Rootfs):]
-	}
-
-	extMnt := &criurpc.ExtMountMap{
-		Key: proto.String(mountDest),
-		Val: proto.String(mountDest),
-	}
-	req.Opts.ExtMnt = append(req.Opts.ExtMnt, extMnt)
-}
-
 func (c *linuxContainer) Checkpoint(criuOpts *CriuOpts) error {
 	c.m.Lock()
 	defer c.m.Unlock()
@@ -369,25 +356,22 @@ func (c *linuxContainer) Checkpoint(criuOpts *CriuOpts) error {
 	}
 
 	t := criurpc.CriuReqType_DUMP
-	req := &criurpc.CriuReq{
+	req := criurpc.CriuReq{
 		Type: &t,
 		Opts: &rpcOpts,
 	}
 
 	for _, m := range c.config.Mounts {
-		switch m.Device {
-		case "bind":
-			c.addCriuDumpMount(req, m)
-			break
-		case "cgroup":
-			binds, err := getCgroupMounts(m)
-			if err != nil {
-				return err
+		if m.Device == "bind" {
+			mountDest := m.Destination
+			if strings.HasPrefix(mountDest, c.config.Rootfs) {
+				mountDest = mountDest[len(c.config.Rootfs):]
 			}
-			for _, b := range binds {
-				c.addCriuDumpMount(req, b)
-			}
-			break
+
+			extMnt := new(criurpc.ExtMountMap)
+			extMnt.Key = proto.String(mountDest)
+			extMnt.Val = proto.String(mountDest)
+			req.Opts.ExtMnt = append(req.Opts.ExtMnt, extMnt)
 		}
 	}
 
@@ -403,24 +387,11 @@ func (c *linuxContainer) Checkpoint(criuOpts *CriuOpts) error {
 		return err
 	}
 
-	err = c.criuSwrk(nil, req, criuOpts)
+	err = c.criuSwrk(nil, &req, criuOpts)
 	if err != nil {
 		return err
 	}
 	return nil
-}
-
-func (c *linuxContainer) addCriuRestoreMount(req *criurpc.CriuReq, m *configs.Mount) {
-	mountDest := m.Destination
-	if strings.HasPrefix(mountDest, c.config.Rootfs) {
-		mountDest = mountDest[len(c.config.Rootfs):]
-	}
-
-	extMnt := &criurpc.ExtMountMap{
-		Key: proto.String(mountDest),
-		Val: proto.String(m.Source),
-	}
-	req.Opts.ExtMnt = append(req.Opts.ExtMnt, extMnt)
 }
 
 func (c *linuxContainer) Restore(process *Process, criuOpts *CriuOpts) error {
@@ -478,7 +449,7 @@ func (c *linuxContainer) Restore(process *Process, criuOpts *CriuOpts) error {
 	defer syscall.Unmount(root, syscall.MNT_DETACH)
 
 	t := criurpc.CriuReqType_RESTORE
-	req := &criurpc.CriuReq{
+	req := criurpc.CriuReq{
 		Type: &t,
 		Opts: &criurpc.CriuOpts{
 			ImagesDirFd:    proto.Int32(int32(imageDir.Fd())),
@@ -497,19 +468,16 @@ func (c *linuxContainer) Restore(process *Process, criuOpts *CriuOpts) error {
 		},
 	}
 	for _, m := range c.config.Mounts {
-		switch m.Device {
-		case "bind":
-			c.addCriuRestoreMount(req, m)
-			break
-		case "cgroup":
-			binds, err := getCgroupMounts(m)
-			if err != nil {
-				return err
+		if m.Device == "bind" {
+			mountDest := m.Destination
+			if strings.HasPrefix(mountDest, c.config.Rootfs) {
+				mountDest = mountDest[len(c.config.Rootfs):]
 			}
-			for _, b := range binds {
-				c.addCriuRestoreMount(req, b)
-			}
-			break
+
+			extMnt := new(criurpc.ExtMountMap)
+			extMnt.Key = proto.String(mountDest)
+			extMnt.Val = proto.String(m.Source)
+			req.Opts.ExtMnt = append(req.Opts.ExtMnt, extMnt)
 		}
 	}
 	for _, iface := range c.config.Networks {
@@ -547,7 +515,7 @@ func (c *linuxContainer) Restore(process *Process, criuOpts *CriuOpts) error {
 		}
 	}
 
-	err = c.criuSwrk(process, req, criuOpts)
+	err = c.criuSwrk(process, &req, criuOpts)
 	if err != nil {
 		return err
 	}
