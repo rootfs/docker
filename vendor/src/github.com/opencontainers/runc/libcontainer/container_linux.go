@@ -238,6 +238,13 @@ func (c *linuxContainer) Destroy() error {
 	if rerr := os.RemoveAll(c.root); err == nil {
 		err = rerr
 	}
+	// If rootfsPropgataion was container_shared, then container root
+	// bind mount point is visible on host. Unmount it.
+	if c.config.RootfsMountPropagation == configs.MNT_RSHARED {
+		if err := syscall.Unmount(c.config.Rootfs, syscall.MNT_DETACH); err != nil {
+			return err
+		}
+	}
 	c.initProcess = nil
 	return err
 }

@@ -55,10 +55,16 @@ func setupRootfs(config *configs.Config, console *linuxConsole) (err error) {
 	if err := syscall.Chdir(config.Rootfs); err != nil {
 		return newSystemError(err)
 	}
-	if config.NoPivotRoot {
-		err = msMoveRoot(config.Rootfs)
+	// pivot_root() or move operation are not allowed when parent mount
+	// is shared. Use chroot() instead.
+	if config.RootfsMountPropagation == configs.MNT_RSHARED {
+		err = syscall.Chroot(config.Rootfs)
 	} else {
-		err = pivotRoot(config.Rootfs, config.PivotDir)
+		if config.NoPivotRoot {
+			err = msMoveRoot(config.Rootfs)
+		} else {
+			err = pivotRoot(config.Rootfs, config.PivotDir)
+		}
 	}
 	if err != nil {
 		return newSystemError(err)
@@ -344,13 +350,33 @@ func mknodDevice(dest string, node *configs.Device) error {
 
 func prepareRoot(config *configs.Config) error {
 	flag := syscall.MS_SLAVE | syscall.MS_REC
-	if config.Privatefs {
+	if config.RootfsMountPropagation == configs.MNT_RPRIVATE {
 		flag = syscall.MS_PRIVATE | syscall.MS_REC
 	}
-	if err := syscall.Mount("", "/", "", uintptr(flag), ""); err != nil {
+	if config.RootfsMountPropagation == configs.MNT_RSHARED {
+		flag = 0
+	}
+	// In case of container-shared mode, don't touch /. This will allow
+	// possibility of shared mount points and mount propagation between
+	// container and parent (If / is SHARED to begin with in parent).
+	if flag != 0 {
+		if err := syscall.Mount("", "/", "", uintptr(flag), ""); err != nil {
+			return err
+		}
+	}
+	if err := syscall.Mount(config.Rootfs, config.Rootfs, "bind", syscall.MS_BIND|syscall.MS_REC, ""); err != nil {
 		return err
 	}
-	return syscall.Mount(config.Rootfs, config.Rootfs, "bind", syscall.MS_BIND|syscall.MS_REC, "")
+	// In case of container_shared mode, mark rootfs PRIVATE. So that
+	// some of the mounts under it will become private (/proc, /sys, /dev)
+	// and will not propagate to host. There does not seem to be a need
+	// for it to be visible on host.
+	if config.RootfsMountPropagation == configs.MNT_RSHARED {
+		if err := syscall.Mount("", config.Rootfs, "", syscall.MS_PRIVATE, ""); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func setReadonly() error {
