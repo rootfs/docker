@@ -523,7 +523,7 @@ func parseRootMount(propogation string) (string, error) {
 	}
 
 	switch propogation {
-	case "shared", "private", "slave", "rshared", "rprivate", "rslave":
+	case "container_private", "container_slave", "container_shared":
 		return propogation, nil
 	default:
 		return "", fmt.Errorf("invalid mount propogation mode %s", propogation)
